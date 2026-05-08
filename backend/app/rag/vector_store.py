@@ -1,8 +1,8 @@
 from typing import List, Optional, Dict, Any
-from qdrant_client import QdrantClient, AsyncQdrantClient
+from qdrant_client import AsyncQdrantClient
 from qdrant_client.models import (
     Distance, VectorParams, PointStruct, Filter,
-    FieldCondition, MatchValue, SearchRequest
+    FieldCondition, MatchValue, MatchAny, FilterSelector,
 )
 import structlog
 import uuid
@@ -36,7 +36,13 @@ class VectorStore:
             )
             logger.info("Created Qdrant collection", name=self.collection_name, dim=dimension)
 
-    async def upsert_chunks(self, doc_id: str, chunks: List[str], embeddings: List[List[float]], metadata: Dict[str, Any] = None):
+    async def upsert_chunks(
+        self,
+        doc_id: str,
+        chunks: List[str],
+        embeddings: List[List[float]],
+        metadata: Dict[str, Any] = None,
+    ):
         points = []
         for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
             point_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"{doc_id}_{i}"))
@@ -46,20 +52,22 @@ class VectorStore:
                 "text": chunk,
                 **(metadata or {}),
             }
-            points.append(PointStruct(
-                id=point_id,
-                vector=embedding,
-                payload=payload,
-            ))
+            points.append(PointStruct(id=point_id, vector=embedding, payload=payload))
 
         await self.client.upsert(collection_name=self.collection_name, points=points)
         logger.info("Upserted chunks", doc_id=doc_id, count=len(points))
 
-    async def search(self, query_embedding: List[float], top_k: int = 5, doc_ids: Optional[List[str]] = None) -> List[Dict]:
+    async def search(
+        self,
+        query_embedding: List[float],
+        top_k: int = 5,
+        doc_ids: Optional[List[str]] = None,
+    ) -> List[Dict]:
         search_filter = None
         if doc_ids:
+            # MatchAny filters by multiple values; MatchValue is for a single value
             search_filter = Filter(
-                must=[FieldCondition(key="doc_id", match=MatchValue(any=doc_ids))]
+                must=[FieldCondition(key="doc_id", match=MatchAny(any=doc_ids))]
             )
 
         results = await self.client.search(
@@ -82,10 +90,13 @@ class VectorStore:
         ]
 
     async def delete_document(self, doc_id: str):
+        # FilterSelector wraps a Filter for use in point deletion operations
         await self.client.delete(
             collection_name=self.collection_name,
-            points_selector=Filter(
-                must=[FieldCondition(key="doc_id", match=MatchValue(value=doc_id))]
+            points_selector=FilterSelector(
+                filter=Filter(
+                    must=[FieldCondition(key="doc_id", match=MatchValue(value=doc_id))]
+                )
             ),
         )
         logger.info("Deleted document vectors", doc_id=doc_id)
@@ -95,7 +106,7 @@ class VectorStore:
             info = await self.client.get_collection(self.collection_name)
             return {
                 "points_count": info.points_count,
-                "status": info.status.value if hasattr(info.status, 'value') else str(info.status),
+                "status": info.status.value if hasattr(info.status, "value") else str(info.status),
             }
         except Exception:
             return {"points_count": 0, "status": "not_initialized"}

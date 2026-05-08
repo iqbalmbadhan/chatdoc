@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, Integer, Boolean, DateTime, Text, JSON, ForeignKey
+from sqlalchemy import String, Integer, Boolean, DateTime, Text, JSON, ForeignKey, Index
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID
 
@@ -9,6 +9,11 @@ from app.core.database import Base
 
 class Visitor(Base):
     __tablename__ = "visitors"
+    __table_args__ = (
+        Index("ix_visitors_last_seen", "last_seen"),
+        Index("ix_visitors_country", "country"),
+        Index("ix_visitors_device_type", "device_type"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     fingerprint: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
@@ -50,9 +55,12 @@ class Visitor(Base):
 
 class VisitorSession(Base):
     __tablename__ = "visitor_sessions"
+    __table_args__ = (
+        Index("ix_visitor_sessions_started_at", "started_at"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    visitor_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("visitors.id"), nullable=False)
+    visitor_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("visitors.id"), nullable=False, index=True)
     session_token: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     duration_seconds: Mapped[int] = mapped_column(Integer, default=0)
     pages_visited: Mapped[list] = mapped_column(JSON, default=list)

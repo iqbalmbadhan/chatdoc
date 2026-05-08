@@ -120,7 +120,7 @@ class DocumentService:
         if os.path.exists(doc.file_path):
             os.remove(doc.file_path)
 
-        await self.db.delete(doc)
+        self.db.delete(doc)  # session.delete() is synchronous
         await self.db.commit()
 
     async def list_documents(self, page: int = 1, page_size: int = 20, status: Optional[str] = None) -> tuple:

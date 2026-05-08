@@ -15,11 +15,11 @@ class WebSocketManager:
         logger.info("WebSocket manager started")
 
     async def shutdown(self):
-        for ws in self.active_connections.values():
+        for client_id, ws in list(self.active_connections.items()):
             try:
                 await ws.close()
             except Exception:
-                pass
+                logger.debug("WebSocket already closed on shutdown", client_id=client_id)
         self.active_connections.clear()
 
     async def connect(self, websocket: WebSocket, client_id: str, is_admin: bool = False):
@@ -39,6 +39,7 @@ class WebSocketManager:
             try:
                 await ws.send_text(json.dumps(data))
             except Exception:
+                logger.warning("WebSocket send failed, disconnecting", client_id=client_id)
                 self.disconnect(client_id)
 
     async def broadcast_admin(self, data: dict):
@@ -50,6 +51,7 @@ class WebSocketManager:
                 try:
                     await ws.send_text(message)
                 except Exception:
+                    logger.warning("WebSocket broadcast failed", client_id=cid)
                     disconnected.append(cid)
 
         for cid in disconnected:
@@ -60,6 +62,20 @@ class WebSocketManager:
             "type": "stats",
             "online_users": len(self.active_connections),
             "admin_count": len(self.admin_connections),
+        })
+
+    async def broadcast_document_status(self, doc_id: str, status: str, progress: int = 0):
+        await self.broadcast_admin({
+            "type": "document_status",
+            "doc_id": doc_id,
+            "status": status,
+            "progress": progress,
+        })
+
+    async def broadcast_new_chat(self):
+        await self.broadcast_admin({
+            "type": "new_chat",
+            "online_users": self.online_count,
         })
 
     @property

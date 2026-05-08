@@ -56,11 +56,36 @@ export default function DocumentsPage() {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
+      // PDF
       "application/pdf": [".pdf"],
+      // Microsoft Office — modern
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
-      "text/plain": [".txt"],
-      "text/csv": [".csv"],
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation": [".pptx"],
+      // Microsoft Office — legacy
+      "application/msword": [".doc"],
+      "application/vnd.ms-excel": [".xls"],
+      // OpenDocument (LibreOffice / macOS)
+      "application/vnd.oasis.opendocument.text": [".odt"],
+      "application/vnd.oasis.opendocument.spreadsheet": [".ods"],
+      "application/vnd.oasis.opendocument.presentation": [".odp"],
+      // Rich text & markup
+      "application/rtf": [".rtf"],
+      "text/rtf": [".rtf"],
+      "text/html": [".html", ".htm"],
+      "application/xml": [".xml"],
+      "text/xml": [".xml"],
+      "application/epub+zip": [".epub"],
+      // Plain text variants
+      "text/plain": [".txt", ".log", ".ini", ".cfg", ".conf", ".rst"],
       "text/markdown": [".md"],
+      "application/toml": [".toml"],
+      // Data / structured
+      "text/csv": [".csv"],
+      "text/tab-separated-values": [".tsv"],
+      "application/json": [".json"],
+      "application/x-yaml": [".yaml", ".yml"],
+      "text/yaml": [".yaml", ".yml"],
     },
     multiple: true,
   });
@@ -125,7 +150,12 @@ export default function DocumentsPage() {
         ) : (
           <>
             <p className="font-medium text-sm">{isDragActive ? "Drop files here" : "Drop files or click to upload"}</p>
-            <p className="text-xs text-muted-foreground mt-1">PDF, DOCX, TXT, CSV, Markdown — max 50MB each</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              PDF · Word (DOC, DOCX) · Excel (XLS, XLSX) · PowerPoint (PPTX) · OpenDocument (ODT, ODS, ODP)
+            </p>
+            <p className="text-xs text-muted-foreground">
+              RTF · HTML · XML · EPUB · CSV · TSV · JSON · YAML · TOML · TXT · MD · and more — max 50 MB
+            </p>
           </>
         )}
       </div>

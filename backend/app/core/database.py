@@ -1,14 +1,23 @@
+import structlog
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 
 from app.core.config import settings
 
+logger = structlog.get_logger()
+
+# At 10k req/min (~167 req/s) with typical 50ms DB queries, we need enough
+# connections to handle concurrent load without queuing. pool_size=30 keeps
+# ~30 persistent connections; max_overflow=60 allows 60 more under burst load.
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.DEBUG,
     pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20,
+    pool_size=30,
+    max_overflow=60,
+    pool_timeout=30,
+    pool_recycle=1800,
 )
 
 AsyncSessionLocal = async_sessionmaker(
@@ -29,7 +38,7 @@ async def get_db() -> AsyncSession:
         try:
             yield session
             await session.commit()
-        except Exception:
+        except SQLAlchemyError:
             await session.rollback()
             raise
         finally:
@@ -41,7 +50,9 @@ async def create_tables():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    # Seed default admin
     from app.services.auth_service import AuthService
     async with AsyncSessionLocal() as session:
-        await AuthService.seed_admin(session)
+        try:
+            await AuthService.seed_admin(session)
+        except Exception:
+            logger.exception("Failed to seed admin user")
