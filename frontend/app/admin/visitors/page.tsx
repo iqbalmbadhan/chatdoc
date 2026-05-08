@@ -23,8 +23,8 @@ export default function VisitorsPage() {
 
   if (loading) return <div className="p-6"><div className="h-48 bg-muted rounded-xl animate-pulse" /></div>;
 
-  const deviceData = Object.entries(stats?.device_breakdown || {}).map(([name, value]) => ({ name, value }));
-  const browserData = Object.entries(stats?.browser_breakdown || {}).slice(0, 5).map(([name, value]) => ({ name, value }));
+  const deviceData = Object.entries(stats?.device_breakdown || {}).map(([name, value]) => ({ name, value: Number(value) }));
+  const browserData = Object.entries(stats?.browser_breakdown || {}).slice(0, 5).map(([name, value]) => ({ name, value: Number(value) }));
 
   return (
     <div className="p-6 space-y-6 max-w-6xl">
@@ -72,9 +72,9 @@ export default function VisitorsPage() {
                   <div key={name} className="flex items-center gap-3">
                     <span className="text-sm w-24 truncate">{name}</span>
                     <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                      <div className="h-full rounded-full" style={{ width: `${Math.min(100, ((value as number) / browserData[0].value as number) * 100)}%`, backgroundColor: COLORS[i] }} />
+                      <div className="h-full rounded-full" style={{ width: `${Math.min(100, (value / browserData[0].value) * 100)}%`, backgroundColor: COLORS[i] }} />
                     </div>
-                    <span className="text-sm font-medium">{value as number}</span>
+                    <span className="text-sm font-medium">{value}</span>
                   </div>
                 ))
               )}
@@ -91,7 +91,7 @@ export default function VisitorsPage() {
             {Object.entries(stats?.country_breakdown || {}).slice(0, 12).map(([country, count]) => (
               <div key={country} className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/50">
                 <span className="text-sm">{country}</span>
-                <span className="text-sm font-semibold">{count as number}</span>
+                <span className="text-sm font-semibold">{Number(count)}</span>
               </div>
             ))}
             {Object.keys(stats?.country_breakdown || {}).length === 0 && (

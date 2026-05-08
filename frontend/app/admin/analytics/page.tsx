@@ -84,18 +84,22 @@ export default function AnalyticsPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {Object.entries(data?.provider_breakdown || {}).map(([p, count]) => (
-              <div key={p} className="flex items-center gap-3">
-                <span className="text-sm w-24 capitalize">{p}</span>
-                <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-primary rounded-full"
-                    style={{ width: `${Math.min(100, ((count as number) / Math.max(...Object.values(data?.provider_breakdown || {}) as number[])) * 100)}%` }}
-                  />
+            {Object.entries(data?.provider_breakdown || {}).map(([p, count]) => {
+              const n = Number(count);
+              const maxVal = Math.max(0, ...Object.values(data?.provider_breakdown || {}).map(Number));
+              return (
+                <div key={p} className="flex items-center gap-3">
+                  <span className="text-sm w-24 capitalize">{p}</span>
+                  <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary rounded-full"
+                      style={{ width: `${maxVal > 0 ? Math.min(100, (n / maxVal) * 100) : 0}%` }}
+                    />
+                  </div>
+                  <span className="text-sm font-medium w-10 text-right">{n}</span>
                 </div>
-                <span className="text-sm font-medium w-10 text-right">{count as number}</span>
-              </div>
-            ))}
+              );
+            })}
             {Object.keys(data?.provider_breakdown || {}).length === 0 && (
               <p className="text-sm text-muted-foreground">No data yet</p>
             )}

@@ -90,7 +90,7 @@ export default function AdminOverviewPage() {
                 Object.entries(data?.provider_breakdown || {}).map(([provider, count]) => (
                   <div key={provider} className="flex items-center justify-between">
                     <span className="text-sm capitalize">{provider}</span>
-                    <span className="text-sm font-medium">{count as number}</span>
+                    <span className="text-sm font-medium">{Number(count)}</span>
                   </div>
                 ))
               )}
