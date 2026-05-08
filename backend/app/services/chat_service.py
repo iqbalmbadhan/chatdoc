@@ -3,6 +3,15 @@ import time
 from datetime import datetime, timezone
 from typing import Optional, AsyncGenerator, List
 
+
+def _safe_uuid(value: Optional[str]) -> Optional[uuid.UUID]:
+    if not value:
+        return None
+    try:
+        return uuid.UUID(value)
+    except (ValueError, AttributeError):
+        return None
+
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc, func
@@ -35,9 +44,13 @@ class ChatService:
             if conv:
                 return conv
 
+        try:
+            uid = uuid.UUID(user_id) if user_id else None
+        except (ValueError, AttributeError):
+            uid = None
         conv = Conversation(
             title=title or "New Conversation",
-            user_id=uuid.UUID(user_id) if user_id else None,
+            user_id=uid,
             session_id=session_id,
         )
         self.db.add(conv)
@@ -86,14 +99,11 @@ class ChatService:
         context = retriever.build_context(retrieved)
         messages_raw = retriever.build_prompt(query, context)
 
-        # Build messages with history
+        # Build messages: system prompt → conversation history → current user turn
         history = await self.get_conversation_history(conv.id, limit=8)
-        messages = [ChatMessage(role=m["role"], content=m["content"]) for m in messages_raw[:1]]  # system
-        messages.extend(history)
-        if context:
-            messages.append(ChatMessage(role="user", content=messages_raw[-1]["content"]))
-        else:
-            messages.append(ChatMessage(role="user", content=query))
+        system_msg = ChatMessage(role=messages_raw[0]["role"], content=messages_raw[0]["content"])
+        user_content = messages_raw[-1]["content"]  # includes injected context when available
+        messages = [system_msg, *history, ChatMessage(role="user", content=user_content)]
 
         # Call AI
         response = await provider.chat(messages=messages, model=model_name)
@@ -129,7 +139,7 @@ class ChatService:
             latency_ms=latency_ms,
             source_documents=source_docs,
             retrieval_count=len(retrieved),
-            visitor_id=uuid.UUID(visitor_id) if visitor_id else None,
+            visitor_id=_safe_uuid(visitor_id),
         )
         self.db.add(assistant_msg)
 
@@ -196,8 +206,9 @@ class ChatService:
 
     async def list_conversations(self, user_id: Optional[str] = None, session_id: Optional[str] = None, page: int = 1, page_size: int = 20) -> tuple:
         query = select(Conversation).where(Conversation.is_active == True)
-        if user_id:
-            query = query.where(Conversation.user_id == uuid.UUID(user_id))
+        uid = _safe_uuid(user_id)
+        if uid:
+            query = query.where(Conversation.user_id == uid)
         elif session_id:
             query = query.where(Conversation.session_id == session_id)
         query = query.order_by(desc(Conversation.updated_at))

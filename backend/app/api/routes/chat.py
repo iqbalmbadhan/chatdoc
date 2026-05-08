@@ -1,5 +1,7 @@
+import json
 import uuid
 from typing import Optional
+
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,7 +23,6 @@ async def chat(
     db: AsyncSession = Depends(get_db),
     user: Optional[User] = Depends(get_optional_user),
 ):
-    # Track visitor
     ip = request.client.host if request.client else "unknown"
     ua = request.headers.get("user-agent", "")
     visitor = await VisitorService(db).track(ip=ip, user_agent=ua)
@@ -49,7 +50,8 @@ async def chat_stream(
     service = ChatService(db)
 
     async def generate():
-        yield f"data: {{'conversation_id': '{body.conversation_id}'}}\n\n"
+        # Send conversation_id as first SSE event so the client can track it
+        yield f"data: {json.dumps({'conversation_id': str(body.conversation_id) if body.conversation_id else None})}\n\n"
         async for token in service.chat_stream(
             query=body.message,
             conversation_id=body.conversation_id,
@@ -58,7 +60,6 @@ async def chat_stream(
             provider_name=body.provider,
             model_name=body.model,
         ):
-            import json
             yield f"data: {json.dumps({'token': token})}\n\n"
         yield "data: [DONE]\n\n"
 

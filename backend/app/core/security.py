@@ -1,12 +1,21 @@
+import base64
+import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+from cryptography.fernet import Fernet, InvalidToken
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 from app.core.config import settings
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+def _fernet() -> Fernet:
+    # Derive a stable 32-byte key from JWT_SECRET using SHA-256, then base64url-encode
+    raw = hashlib.sha256(settings.JWT_SECRET.encode()).digest()
+    return Fernet(base64.urlsafe_b64encode(raw))
 
 
 def hash_password(password: str) -> str:
@@ -37,17 +46,11 @@ def decode_token(token: str) -> Optional[dict]:
 
 
 def encrypt_api_key(key: str) -> str:
-    """Simple reversible encryption for storing API keys."""
-    import base64
-    secret = settings.JWT_SECRET[:32].encode()
-    key_bytes = key.encode()
-    encrypted = bytes(a ^ b for a, b in zip(key_bytes, (secret * ((len(key_bytes) // 32) + 1))[:len(key_bytes)]))
-    return base64.urlsafe_b64encode(encrypted).decode()
+    return _fernet().encrypt(key.encode()).decode()
 
 
 def decrypt_api_key(encrypted: str) -> str:
-    import base64
-    secret = settings.JWT_SECRET[:32].encode()
-    encrypted_bytes = base64.urlsafe_b64decode(encrypted.encode())
-    decrypted = bytes(a ^ b for a, b in zip(encrypted_bytes, (secret * ((len(encrypted_bytes) // 32) + 1))[:len(encrypted_bytes)]))
-    return decrypted.decode()
+    try:
+        return _fernet().decrypt(encrypted.encode()).decode()
+    except InvalidToken as exc:
+        raise ValueError("Failed to decrypt API key — JWT_SECRET may have changed.") from exc

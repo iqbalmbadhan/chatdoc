@@ -1,73 +1,50 @@
 # ChatDoc — AI Document Chatbot Platform
 
-A production-ready, locally-hosted AI document assistant. Upload PDFs, Word docs, CSVs, and more — then chat with your knowledgebase using any AI provider, all running locally via Docker Compose.
+A self-hosted platform for chatting with your documents. Upload PDFs, Word files, spreadsheets, and Markdown — then ask questions in natural language. Supports OpenAI, Gemini, DeepSeek, OpenRouter, and Ollama.
 
 ---
 
-## Features
+## Requirements
 
-### Chat Interface
-- ChatGPT-style streaming chat UI with source citations
-- Conversation history sidebar
-- Dark/light mode + PWA installable (Android/iPhone/Desktop)
-- Mobile-first, touch-optimized, keyboard-safe layouts
+| Tool | Minimum version |
+|------|-----------------|
+| Docker | 24.x |
+| Docker Compose | 2.x (plugin, not standalone) |
+| Git | any |
 
-### Document Management
-- Upload: PDF, DOCX, TXT, CSV, Markdown
-- Automatic text extraction → chunking → embedding → Qdrant vector indexing
-- Re-index with custom chunk size & embedding model
-- Drag-and-drop upload with progress indicator
-
-### RAG System
-- Semantic similarity search via Qdrant vector database
-- Configurable chunk size, overlap, and top-K retrieval
-- Source attribution with filename, score, and excerpt in every response
-
-### Multi-Model AI Support
-
-| Provider | Chat | Embeddings |
-|----------|------|------------|
-| OpenAI | ✅ GPT-4o, GPT-4o-mini | ✅ text-embedding-3 |
-| Google Gemini | ✅ 1.5 Flash/Pro | ✅ text-embedding-004 |
-| DeepSeek | ✅ deepseek-chat, R1 | ✅ |
-| OpenRouter | ✅ 100+ models | ✅ |
-| Ollama (local) | ✅ Llama3, Mistral, Qwen | ✅ nomic-embed-text |
-
-### Admin Dashboard (10 pages)
-- Overview with charts and KPIs
-- Document management with upload, re-index, delete
-- AI provider switching with test/validate
-- API key management (AES-encrypted at rest)
-- Usage analytics (tokens, cost, latency charts)
-- Visitor analytics (country, browser, device)
-- Full chat logs with search and CSV export
-- System & admin activity logs
-- Platform settings (RAG config, privacy, limits)
-- System health monitoring (Postgres, Redis, Qdrant, Ollama)
+No Python or Node.js needed on the host — everything runs inside containers.
 
 ---
 
 ## Quick Start
 
-### Prerequisites
-- Docker & Docker Compose v2+
-
 ### 1. Clone and configure
 
 ```bash
-git clone https://github.com/iqbalmbadhan/chatdoc
+git clone https://github.com/iqbalmbadhan/chatdoc.git
 cd chatdoc
 cp .env.example .env
-# Edit .env and add at least one API key, or leave blank to use Ollama
 ```
 
-### 2. Start everything
+Open `.env` and set at minimum:
+
+```env
+# Required — change before any internet-facing deployment
+JWT_SECRET=replace-with-a-long-random-string
+
+# At least one AI provider key (or use Ollama — see below)
+OPENAI_API_KEY=sk-...
+```
+
+Everything else has working defaults for local development.
+
+### 2. Start the platform
 
 ```bash
-docker compose up
+docker compose up -d
 ```
 
-> First start: Docker pulls images and the local embedding model downloads (~400MB). Takes 2-3 min.
+This starts PostgreSQL, Redis, Qdrant, the FastAPI backend, the Celery worker, and the Next.js frontend. The first run downloads images and builds containers — allow 3–5 minutes.
 
 ### 3. Open the app
 
@@ -77,111 +54,207 @@ docker compose up
 | http://localhost:3000/admin | Admin dashboard |
 | http://localhost:8000/api/docs | API documentation |
 
-**Default admin:** `admin@example.com` / `admin123`  
-⚠️ Change password on first login (Settings page)
+**Default admin credentials**
+
+```
+Email:    admin@example.com
+Password: admin123
+```
+
+Change these immediately after first login under **Admin → Settings**.
+
+---
+
+## Environment Variables
+
+Copy `.env.example` to `.env`. Only `JWT_SECRET` must be changed; everything else works locally with its default.
+
+```env
+# ─── Security ─────────────────────────────────────────────────────────────────
+JWT_SECRET=replace-with-a-long-random-string
+
+# ─── Admin defaults ───────────────────────────────────────────────────────────
+DEFAULT_ADMIN_EMAIL=admin@example.com
+DEFAULT_ADMIN_PASSWORD=admin123
+
+# ─── Database ─────────────────────────────────────────────────────────────────
+POSTGRES_USER=chatdoc
+POSTGRES_PASSWORD=chatdoc_secret
+POSTGRES_DB=chatdoc
+
+# ─── Redis ────────────────────────────────────────────────────────────────────
+REDIS_PASSWORD=redis_secret
+
+# ─── AI Providers (add whichever you use) ────────────────────────────────────
+OPENAI_API_KEY=
+GEMINI_API_KEY=
+DEEPSEEK_API_KEY=
+OPENROUTER_API_KEY=
+QWEN_API_KEY=
+
+# ─── Frontend ─────────────────────────────────────────────────────────────────
+NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_WS_URL=ws://localhost:8000
+
+# ─── Optional ─────────────────────────────────────────────────────────────────
+ENVIRONMENT=production
+MAX_UPLOAD_SIZE_MB=50
+```
+
+---
+
+## Features
+
+### Chat Interface
+- Streaming chat UI with source citations (filename, score, excerpt)
+- Conversation history sidebar
+- Dark/light mode, PWA-installable on Android/iPhone/Desktop
+- Mobile-first, keyboard-safe layouts
+
+### Document Management
+- Formats: PDF, DOCX, TXT, CSV, XLSX, Markdown
+- Text extraction → chunking → local embeddings → Qdrant vector index
+- Per-document re-indexing with custom chunk size and embedding model
+- Status tracking: pending / processing / indexed / failed
+
+### Multi-Model AI Support
+
+| Provider | Chat models | Embeddings |
+|----------|-------------|------------|
+| OpenAI | GPT-4o, GPT-4o-mini | text-embedding-3-small/large |
+| Google Gemini | 1.5 Flash, 1.5 Pro | text-embedding-004 |
+| DeepSeek | deepseek-chat, deepseek-r1 | — |
+| OpenRouter | 100+ models | — |
+| Ollama (local) | Llama3, Mistral, Qwen, … | nomic-embed-text |
+
+### Admin Dashboard (10 sections)
+
+| Section | Description |
+|---------|-------------|
+| Overview | Live stats: chats, tokens, cost, active users |
+| Documents | Upload, index, manage document library |
+| AI Models | Configure providers and default model |
+| API Keys | Store and rotate keys (Fernet-encrypted at rest) |
+| Analytics | Token usage, cost, latency trends |
+| Visitors | Browser, device, country breakdown |
+| Chats | Full chat history across all sessions |
+| Logs | System event log |
+| Settings | RAG tuning, rate limits, privacy controls |
+| System | Service health: Postgres, Redis, Qdrant, Ollama |
+
+---
+
+## Using Ollama (local AI, no API key required)
+
+Ollama is **not started by default** — it needs several GB of disk space and significant RAM. To enable it:
+
+```bash
+# Start with Ollama included
+docker compose --profile ollama up -d
+
+# Pull a language model and an embedding model
+docker exec chatdoc-ollama ollama pull llama3
+docker exec chatdoc-ollama ollama pull nomic-embed-text
+```
+
+Then set Ollama as the default provider in **Admin → AI Models**.
 
 ---
 
 ## Architecture
 
 ```
-chatdoc/
-├── frontend/                    # Next.js 15 + TypeScript
-│   ├── app/
-│   │   ├── chat/               # Public chat interface
-│   │   ├── admin/              # Protected admin (10 pages)
-│   │   └── login/              # Admin login
-│   ├── components/             # UI, chat, admin components
-│   ├── store/                  # Zustand (auth, chat state)
-│   └── lib/                    # Axios API client, utils
-│
-├── backend/                     # Python 3.12 + FastAPI
-│   ├── app/
-│   │   ├── api/routes/         # REST endpoints (/auth /chat /docs ...)
-│   │   ├── auth/               # JWT dependency injection
-│   │   ├── core/               # Config, DB, Redis, Celery
-│   │   ├── models/             # SQLAlchemy ORM (6 models)
-│   │   ├── schemas/            # Pydantic v2 schemas
-│   │   ├── services/           # Business logic layer
-│   │   ├── providers/          # AI provider abstractions (5 providers)
-│   │   ├── rag/                # Document processor, embeddings, vector store
-│   │   └── websocket/          # Real-time WebSocket manager
-│   ├── alembic/                # DB migrations
-│   └── storage/                # Uploaded files (bind mount)
-│
-├── docker-compose.yml          # One-command startup
-└── .env.example
+┌─────────────────────────────────────────────────────────┐
+│  Browser / Mobile                                        │
+│  Next.js 15  (port 3000)                                 │
+└──────────────────────┬──────────────────────────────────┘
+                       │ HTTP / WebSocket
+┌──────────────────────▼──────────────────────────────────┐
+│  FastAPI  (port 8000)                                    │
+│  • REST API + SSE streaming                              │
+│  • JWT auth + rate limiting                              │
+│  • RAG pipeline: embed → search → inject context         │
+└───────┬─────────────┬────────────────┬───────────────────┘
+        │             │                │
+   ┌────▼────┐  ┌─────▼─────┐  ┌──────▼──────┐
+   │Postgres │  │  Qdrant   │  │   Redis     │
+   │(users,  │  │(vectors)  │  │(cache,      │
+   │ chats,  │  └───────────┘  │ sessions,   │
+   │ docs)   │                 │ task queue) │
+   └─────────┘                 └──────┬──────┘
+                                      │
+                               ┌──────▼──────┐
+                               │   Celery    │
+                               │  (document  │
+                               │  indexing)  │
+                               └─────────────┘
 ```
 
-### Service Graph
+**RAG pipeline**
 
-```
-Browser → Frontend (3000) → Backend API (8000) → PostgreSQL
-                                                → Redis ← Celery Worker
-                                                → Qdrant (6333)
-                                                → Ollama (11434) [optional]
-```
+1. Document uploaded → Celery queues indexing task
+2. Worker extracts text → splits into 512-token chunks (configurable)
+3. `sentence-transformers/all-MiniLM-L6-v2` generates 384-dim embeddings — runs locally, no API needed
+4. Vectors stored in Qdrant (cosine similarity index)
+5. At chat time: query is embedded → top-K chunks retrieved → injected as context → sent to AI provider
 
 ---
 
-## Configuration
+## Development Setup (without Docker)
 
-### Key Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `JWT_SECRET` | — | **Change in production** |
-| `POSTGRES_PASSWORD` | `chatdoc_secret` | PostgreSQL password |
-| `REDIS_PASSWORD` | `redis_secret` | Redis auth |
-| `OPENAI_API_KEY` | — | Optional: OpenAI |
-| `GEMINI_API_KEY` | — | Optional: Google Gemini |
-| `OPENROUTER_API_KEY` | — | Optional: OpenRouter |
-| `DEEPSEEK_API_KEY` | — | Optional: DeepSeek |
-
-### Using Ollama (Free, runs locally)
-
-Ollama is the default provider. Enable the Ollama service:
-
-```bash
-docker compose --profile ollama up
-```
-
-Pull models (inside the container):
-
-```bash
-docker exec chatdoc-ollama ollama pull llama3
-docker exec chatdoc-ollama ollama pull nomic-embed-text
-```
-
----
-
-## Development
-
-### Backend local dev
+### Backend
 
 ```bash
 cd backend
-python -m venv venv && source venv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
-docker compose up postgres redis qdrant -d
-uvicorn main:app --reload
+
+# Start external services only
+docker compose up -d postgres redis qdrant
+
+# Run the API server
+uvicorn main:app --reload --port 8000
 ```
 
-### Frontend local dev
+### Frontend
 
 ```bash
 cd frontend
 npm install
+# create .env.local with NEXT_PUBLIC_API_URL=http://localhost:8000
 npm run dev
+```
+
+### Celery worker
+
+```bash
+cd backend
+source .venv/bin/activate
+celery -A app.core.celery_app worker --loglevel=info --concurrency=4
 ```
 
 ### Database migrations
 
 ```bash
 cd backend
-alembic revision --autogenerate -m "describe change"
+alembic revision --autogenerate -m "describe your change"
 alembic upgrade head
 ```
+
+---
+
+## Scaling
+
+The platform is built to handle ~10,000 requests per minute:
+
+- **PostgreSQL** connection pool: 30 persistent + 60 overflow per backend instance
+- **Redis** pool: 200 connections, `allkeys-lru` eviction, 512 MB cap
+- **Rate limiting**: 200 req/min per IP (adjustable in Settings)
+- **Async-first**: all database, Redis, and Qdrant I/O is non-blocking
+- **Background indexing**: document processing in Celery workers never blocks the API
+
+For higher load, run multiple backend replicas behind a load balancer and scale Celery worker concurrency.
 
 ---
 
@@ -190,53 +263,64 @@ alembic upgrade head
 | Layer | Technology |
 |-------|-----------|
 | Frontend | Next.js 15, TypeScript, TailwindCSS, shadcn/ui |
-| State management | Zustand |
+| State | Zustand |
 | Animations | Framer Motion |
 | Charts | Recharts |
 | Backend | Python 3.12, FastAPI, SQLAlchemy 2.0 async |
 | Validation | Pydantic v2 |
 | Auth | JWT (python-jose) + bcrypt |
+| Encryption | Fernet (cryptography library) |
 | Vector DB | Qdrant |
 | Relational DB | PostgreSQL 16 |
 | Cache / Queue | Redis 7 + Celery |
-| Embeddings | sentence-transformers (local, no API needed) |
-| Document parsing | PyMuPDF, python-docx, pandas |
+| Embeddings | sentence-transformers (local) |
+| Document parsing | PyMuPDF, python-docx, pandas, openpyxl |
 | Container | Docker Compose |
-| PWA | next-pwa (service workers, offline, installable) |
 
 ---
 
-## Security
+## Stopping and Cleanup
 
-- JWT tokens with configurable expiry (default 60min access, 7d refresh)
-- API keys XOR-encrypted before storage
-- bcrypt password hashing
-- Role-based access control (admin / user)
-- CORS configured per environment
-- File MIME type validation on upload
+```bash
+# Stop all containers, keep data volumes
+docker compose down
+
+# Stop and delete all data (irreversible)
+docker compose down -v
+```
 
 ---
 
-## Extending
+## Troubleshooting
 
-### Add a new AI provider
+**Port already in use**
 
-1. Create `backend/app/providers/myprovider_provider.py` implementing `BaseProvider`
-2. Register in `backend/app/providers/registry.py`
+```bash
+# Find what is using port 5432 (or 6379, 6333, 8000, 3000)
+sudo lsof -i :5432
+```
 
-### Add a new document type
+**Backend returns 500 on first request**
 
-1. Add extractor to `DocumentProcessor` in `backend/app/rag/document_processor.py`
-2. Add MIME type to `SUPPORTED_TYPES`
-3. Update the frontend dropzone `accept` config
+The database or Redis may still be initializing. Wait a moment, then check:
 
-### Future SaaS add-ons (architecture ready)
+```bash
+docker compose ps                        # all services should show "healthy"
+docker compose logs backend --tail=50
+```
 
-- **Stripe subscriptions**: Add `plan` field to User model, add billing routes
-- **Multi-tenant workspaces**: Add `workspace_id` FK to all data models
-- **WhatsApp/Telegram bots**: New routers consuming `ChatService`
-- **Embeddable widget**: Public CORS-open chat endpoint + React snippet
-- **Voice chat**: WebRTC + Whisper transcription → ChatService
+**Document stuck in "processing" status**
+
+```bash
+docker compose logs celery_worker --tail=50
+```
+
+**Ollama not responding**
+
+```bash
+docker exec chatdoc-ollama ollama list   # verify the model is downloaded
+docker compose logs ollama --tail=30
+```
 
 ---
 

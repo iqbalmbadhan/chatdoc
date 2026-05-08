@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, Integer, Float, DateTime, Date, JSON
+from sqlalchemy import String, Integer, Float, DateTime, Date, JSON, Index
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID
 
@@ -9,6 +9,10 @@ from app.core.database import Base
 
 class UsageRecord(Base):
     __tablename__ = "usage_records"
+    # Composite index to speed up the per-day/provider/model aggregation queries
+    __table_args__ = (
+        Index("ix_usage_records_date_provider_model", "date", "provider", "model"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     date: Mapped[datetime] = mapped_column(Date, nullable=False, index=True)

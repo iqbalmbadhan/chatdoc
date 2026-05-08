@@ -54,10 +54,6 @@ class ProviderService:
             raise ValueError("Provider not found")
 
         if updates.get("is_default"):
-            await self.db.execute(
-                select(ProviderConfig).where(ProviderConfig.is_default == True)
-            )
-            # Clear other defaults
             all_result = await self.db.execute(select(ProviderConfig))
             for p in all_result.scalars().all():
                 p.is_default = False
@@ -100,5 +96,5 @@ class ProviderService:
         result = await self.db.execute(select(ApiKey).where(ApiKey.id == uuid.UUID(key_id)))
         key = result.scalar_one_or_none()
         if key:
-            await self.db.delete(key)
+            self.db.delete(key)  # session.delete() is synchronous; no await
             await self.db.commit()
