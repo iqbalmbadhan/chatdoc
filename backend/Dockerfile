@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     libmagic1 \
     poppler-utils \
+    antiword \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
