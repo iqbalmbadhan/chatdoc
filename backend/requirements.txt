@@ -52,6 +52,7 @@ ebooklib==0.18
 
 # ─── AI / Embeddings ──────────────────────────────────────────────────────────
 openai==1.57.4
+google-generativeai==0.8.3
 httpx==0.28.1
 sentence-transformers==3.3.1
 

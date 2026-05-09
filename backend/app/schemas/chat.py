@@ -26,10 +26,10 @@ class MessageOut(BaseModel):
     content: str
     provider: Optional[str]
     model: Optional[str]
-    total_tokens: int
-    estimated_cost: float
-    latency_ms: int
-    source_documents: List[Any]
+    total_tokens: Optional[int] = 0
+    estimated_cost: Optional[float] = 0.0
+    latency_ms: Optional[int] = 0
+    source_documents: Optional[List[Any]] = []
     created_at: datetime
 
     model_config = {"from_attributes": True}

@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     APP_NAME: str = "ChatDoc"
     APP_VERSION: str = "1.0.0"
-    DEBUG: bool = False
+    DEBUG: bool = True
 
     # CORS
     CORS_ORIGINS: str = "http://localhost:3000"

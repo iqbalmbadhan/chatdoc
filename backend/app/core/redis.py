@@ -40,6 +40,9 @@ async def close_redis() -> None:
 
 def get_redis_client() -> aioredis.Redis:
     if _client is None:
+        # We can't await here because get_redis_client is sync, 
+        # but we can return a new unawaited client or raise.
+        # Actually we should raise if it's strictly sync and not initialized.
         raise RuntimeError("Redis not initialised. Call init_redis() first.")
     return _client
 
