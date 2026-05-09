@@ -8,16 +8,27 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { settingsApi } from "@/lib/api";
+
+type EmbeddingModel = { id: string; dim: number };
+type EmbeddingProviderOption = {
+  display_name: string;
+  requires_api_key: boolean;
+  models: EmbeddingModel[];
+};
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<any>(null);
+  const [embeddingProviders, setEmbeddingProviders] = useState<Record<string, EmbeddingProviderOption>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    settingsApi.get().then(setSettings).finally(() => setLoading(false));
+    Promise.all([settingsApi.get(), settingsApi.embeddingProviders()])
+      .then(([s, ep]) => { setSettings(s); setEmbeddingProviders(ep); })
+      .finally(() => setLoading(false));
   }, []);
 
   const handleSave = async () => {
@@ -28,6 +39,11 @@ export default function SettingsPage() {
     setTimeout(() => setSaved(false), 2000);
   };
 
+  const handleEmbeddingProviderChange = (provider: string) => {
+    const firstModel = embeddingProviders[provider]?.models[0]?.id ?? "";
+    setSettings((s: any) => ({ ...s, embedding_provider: provider, embedding_model: firstModel }));
+  };
+
   if (loading || !settings) return <div className="p-6"><div className="h-48 bg-muted rounded-xl animate-pulse" /></div>;
 
   const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
@@ -36,6 +52,8 @@ export default function SettingsPage() {
       {children}
     </div>
   );
+
+  const currentProviderModels = embeddingProviders[settings.embedding_provider]?.models ?? [];
 
   return (
     <div className="p-6 space-y-6 max-w-3xl">
@@ -63,9 +81,41 @@ export default function SettingsPage() {
           <Field label="Top-K Results">
             <Input type="number" value={settings.top_k} onChange={(e) => setSettings((s: any) => ({ ...s, top_k: parseInt(e.target.value) }))} />
           </Field>
-          <Field label="Embedding Model">
-            <Input value={settings.embedding_model} onChange={(e) => setSettings((s: any) => ({ ...s, embedding_model: e.target.value }))} />
+          <div /> {/* grid spacer */}
+          <Field label="Embedding Provider">
+            <Select value={settings.embedding_provider} onValueChange={handleEmbeddingProviderChange}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select provider" />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(embeddingProviders).map(([key, p]) => (
+                  <SelectItem key={key} value={key}>{p.display_name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </Field>
+          <Field label="Embedding Model">
+            <Select
+              value={settings.embedding_model}
+              onValueChange={(v) => setSettings((s: any) => ({ ...s, embedding_model: v }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select model" />
+              </SelectTrigger>
+              <SelectContent>
+                {currentProviderModels.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.id} <span className="text-muted-foreground ml-1">({m.dim}d)</span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          {embeddingProviders[settings.embedding_provider]?.requires_api_key && (
+            <p className="col-span-2 text-xs text-amber-600">
+              This provider requires an API key — configure it in the Models &amp; Providers page.
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -99,7 +149,7 @@ export default function SettingsPage() {
           {[
             { key: "ip_anonymization", label: "IP Anonymization", desc: "Store anonymized IPs only" },
             { key: "gdpr_consent", label: "GDPR Consent Mode", desc: "Show consent banner to visitors" },
-            { key: "auto_delete_logs", label: "Auto-Delete Logs", desc: `Delete logs older than retention period` },
+            { key: "auto_delete_logs", label: "Auto-Delete Logs", desc: "Delete logs older than retention period" },
           ].map(({ key, label, desc }) => (
             <div key={key} className="flex items-center justify-between">
               <div>

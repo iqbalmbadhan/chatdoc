@@ -7,7 +7,7 @@ from app.models.user import User
 from app.schemas.provider import ProviderConfigOut, ProviderConfigUpdate
 from app.services.provider_service import ProviderService
 from app.auth.dependencies import get_admin_user
-from app.providers.registry import PROVIDER_REGISTRY, get_provider
+from app.providers.chat.registry import PROVIDER_REGISTRY, get_provider
 
 router = APIRouter()
 
@@ -42,9 +42,16 @@ async def get_provider_models(provider_name: str, admin: User = Depends(get_admi
 
 @router.post("/{provider_name}/validate")
 async def validate_provider(provider_name: str, admin: User = Depends(get_admin_user), db: AsyncSession = Depends(get_db)):
-    service = ProviderService(db)
-    _, api_key = await service.get_default_provider()
-    provider = get_provider(provider_name, api_key=api_key or "")
+    # Get the specific key for this provider
+    from sqlalchemy import select
+    from app.models.provider import ApiKey
+    from app.core.security import decrypt_api_key
+    
+    key_result = await db.execute(select(ApiKey).where(ApiKey.provider == provider_name, ApiKey.is_active == True))
+    key_record = key_result.scalar_one_or_none()
+    api_key = decrypt_api_key(key_record.encrypted_key) if key_record else ""
+    
+    provider = get_provider(provider_name, api_key=api_key)
     if not provider:
         raise HTTPException(404, "Provider not found")
     valid = await provider.validate_key()

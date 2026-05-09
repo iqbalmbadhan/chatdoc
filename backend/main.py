@@ -1,6 +1,8 @@
+# pyrefly: ignore [missing-import]
 import structlog
 from contextlib import asynccontextmanager
 
+# pyrefly: ignore [missing-import]
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -61,17 +63,33 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
-    response = await call_next(request)
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    return response
+    try:
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        return response
+    except Exception as exc:
+        logger.error("Middleware error", path=request.url.path, error=str(exc), exc_info=True)
+        detail = str(exc) if settings.DEBUG else "An internal error occurred in middleware."
+        return JSONResponse(
+            status_code=500,
+            content={"detail": detail},
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "*",
+                "Access-Control-Allow-Headers": "*",
+            }
+        )
 
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
     logger.error("Unhandled exception", path=request.url.path, error=str(exc), exc_info=True)
-    return JSONResponse(status_code=500, content={"detail": "An internal error occurred."})
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc) if settings.DEBUG else "An internal error occurred."},
+    )
 
 
 # ─── Static files ─────────────────────────────────────────────────────────────

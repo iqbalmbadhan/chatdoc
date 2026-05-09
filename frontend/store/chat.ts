@@ -57,7 +57,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   isLoading: false,
   isStreaming: false,
-  sessionId: generateSessionId(),
+  sessionId: typeof window !== "undefined" ? (localStorage.getItem("chatdoc_session_id") || generateSessionId()) : generateSessionId(),
   selectedProvider: null,
   selectedModel: null,
 
@@ -92,12 +92,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
         currentConversationId: data.conversation_id,
         isLoading: false,
       }));
-    } catch (error) {
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.detail || "Sorry, something went wrong. Please try again.";
       set((s) => ({
         messages: [...s.messages, {
           id: Date.now().toString(),
           role: "assistant",
-          content: "Sorry, something went wrong. Please try again.",
+          content: errorMsg,
           created_at: new Date().toISOString(),
         }],
         isLoading: false,
