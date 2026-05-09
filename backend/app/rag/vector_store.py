@@ -90,15 +90,17 @@ class VectorStore:
         ]
 
     async def delete_document(self, doc_id: str):
-        # FilterSelector wraps a Filter for use in point deletion operations
-        await self.client.delete(
-            collection_name=self.collection_name,
-            points_selector=FilterSelector(
-                filter=Filter(
-                    must=[FieldCondition(key="doc_id", match=MatchValue(value=doc_id))]
-                )
-            ),
-        )
+        try:
+            await self.client.delete(
+                collection_name=self.collection_name,
+                points_selector=FilterSelector(
+                    filter=Filter(
+                        must=[FieldCondition(key="doc_id", match=MatchValue(value=doc_id))]
+                    )
+                ),
+            )
+        except Exception:
+            pass  # collection doesn't exist yet or doc was never indexed
         logger.info("Deleted document vectors", doc_id=doc_id)
 
     async def get_collection_info(self) -> dict:

@@ -19,8 +19,8 @@ from sqlalchemy import select, desc, func
 from app.models.chat import Conversation, Message
 from app.models.document import Document
 from app.rag.retriever import RAGRetriever
-from app.providers.registry import get_provider
-from app.providers.base import ChatMessage
+from app.providers.chat.registry import get_provider
+from app.providers.chat.base import ChatMessage
 from app.services.provider_service import ProviderService
 from app.services.analytics_service import AnalyticsService
 
@@ -87,17 +87,31 @@ class ChatService:
         self.db.add(user_msg)
 
         # Determine provider and model
-        provider_config, api_key = await ProviderService(self.db).get_default_provider()
+        if provider_name:
+            provider_config, api_key = await ProviderService(self.db).get_provider_config(provider_name)
+        else:
+            provider_config, api_key = await ProviderService(self.db).get_default_provider()
+            
         provider_name = provider_name or (provider_config.name if provider_config else "ollama")
         model_name = model_name or (provider_config.default_model if provider_config else "llama3")
+        logger.info("Provider and model determined", provider=provider_name, model=model_name)
 
         provider = get_provider(provider_name, api_key=api_key or "")
 
-        # RAG retrieval
-        retriever = RAGRetriever()
-        retrieved = await retriever.retrieve(query, provider=None)
+        # RAG retrieval — uses dedicated embedding provider, separate from chat provider
+        logger.info("Starting RAG retrieval")
+        emb_provider, emb_model, emb_api_key = await ProviderService(self.db).get_embedding_config()
+        from app.core.config import settings as app_config
+        retriever = RAGRetriever(embedding_model=emb_model)
+        retrieved = await retriever.retrieve(
+            query,
+            embedding_provider=emb_provider,
+            embedding_api_key=emb_api_key,
+            embedding_ollama_url=app_config.OLLAMA_URL if emb_provider == "ollama" else "",
+        )
         context = retriever.build_context(retrieved)
         messages_raw = retriever.build_prompt(query, context)
+        logger.info("RAG retrieval finished", documents_count=len(retrieved))
 
         # Build messages: system prompt → conversation history → current user turn
         history = await self.get_conversation_history(conv.id, limit=8)
@@ -106,8 +120,10 @@ class ChatService:
         messages = [system_msg, *history, ChatMessage(role="user", content=user_content)]
 
         # Call AI
+        logger.info("Calling AI provider")
         response = await provider.chat(messages=messages, model=model_name)
         latency_ms = int((time.time() - start_time) * 1000)
+        logger.info("AI response received", latency_ms=latency_ms)
 
         # Format source documents
         source_docs = [
@@ -122,7 +138,7 @@ class ChatService:
         ]
 
         # Estimate cost
-        from app.providers.openai_provider import OpenAIProvider
+        from app.providers.chat.openai_provider import OpenAIProvider
         cost = OpenAIProvider.estimate_cost(response.prompt_tokens, response.completion_tokens, model_name)
 
         # Save assistant message
@@ -173,14 +189,25 @@ class ChatService:
     ) -> AsyncGenerator[str, None]:
         conv = await self.get_or_create_conversation(conversation_id, session_id, user_id, title=query[:60])
 
-        provider_config, api_key = await ProviderService(self.db).get_default_provider()
+        if provider_name:
+            provider_config, api_key = await ProviderService(self.db).get_provider_config(provider_name)
+        else:
+            provider_config, api_key = await ProviderService(self.db).get_default_provider()
+
         provider_name = provider_name or (provider_config.name if provider_config else "ollama")
         model_name = model_name or (provider_config.default_model if provider_config else "llama3")
 
         provider = get_provider(provider_name, api_key=api_key or "")
 
-        retriever = RAGRetriever()
-        retrieved = await retriever.retrieve(query)
+        emb_provider, emb_model, emb_api_key = await ProviderService(self.db).get_embedding_config()
+        from app.core.config import settings as app_config
+        retriever = RAGRetriever(embedding_model=emb_model)
+        retrieved = await retriever.retrieve(
+            query,
+            embedding_provider=emb_provider,
+            embedding_api_key=emb_api_key,
+            embedding_ollama_url=app_config.OLLAMA_URL if emb_provider == "ollama" else "",
+        )
         context = retriever.build_context(retrieved)
         messages_raw = retriever.build_prompt(query, context)
         messages = [ChatMessage(role=m["role"], content=m["content"]) for m in messages_raw]

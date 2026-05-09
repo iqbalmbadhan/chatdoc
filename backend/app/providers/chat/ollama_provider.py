@@ -1,7 +1,7 @@
 from typing import AsyncGenerator, List
 import httpx
 import json
-from app.providers.base import BaseProvider, ChatMessage, ChatResponse, EmbeddingResponse
+from app.providers.chat.base import BaseProvider, ChatMessage, ChatResponse, EmbeddingResponse
 from app.core.config import settings
 
 

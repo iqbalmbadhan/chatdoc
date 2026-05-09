@@ -17,13 +17,17 @@ class RAGRetriever:
     async def retrieve(
         self,
         query: str,
-        provider=None,
+        embedding_provider: str = "local",
+        embedding_api_key: str = "",
+        embedding_ollama_url: str = "",
         doc_ids: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
-        query_embedding = await EmbeddingService.embed_texts(
+        query_embedding = await EmbeddingService.embed_with_provider(
             texts=[query],
-            provider=provider,
+            provider_name=embedding_provider,
             model=self.embedding_model,
+            api_key=embedding_api_key,
+            ollama_url=embedding_ollama_url,
         )
         results = await self.vector_store.search(
             query_embedding=query_embedding[0],

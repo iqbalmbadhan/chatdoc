@@ -36,7 +36,11 @@ export function formatRelativeTime(date: string | Date): string {
 }
 
 export function generateSessionId(): string {
-  return Math.random().toString(36).substring(2) + Date.now().toString(36);
+  const id = Math.random().toString(36).substring(2) + Date.now().toString(36);
+  if (typeof window !== "undefined") {
+    localStorage.setItem("chatdoc_session_id", id);
+  }
+  return id;
 }
 
 export const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000";

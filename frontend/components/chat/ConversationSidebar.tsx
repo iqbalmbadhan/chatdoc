@@ -50,14 +50,17 @@ export function ConversationSidebar({ isOpen, onClose }: ConversationSidebarProp
         initial={false}
         animate={{ x: isOpen ? 0 : "-100%" }}
         transition={{ type: "spring", damping: 30, stiffness: 300 }}
-        className="fixed left-0 top-0 h-full w-72 bg-sidebar border-r z-50 flex flex-col md:relative md:translate-x-0 md:z-auto md:w-64"
+        className={cn(
+          "fixed left-0 top-0 h-full w-72 bg-sidebar border-r z-50 flex flex-col shadow-xl",
+          !isOpen && "pointer-events-none"
+        )}
       >
         <div className="flex items-center justify-between p-4 border-b">
           <div className="flex items-center gap-2">
             <BookOpen className="w-5 h-5 text-primary" />
             <span className="font-semibold text-sm">ChatDoc</span>
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose} className="md:hidden h-8 w-8">
+          <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
             <X className="w-4 h-4" />
           </Button>
         </div>

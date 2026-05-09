@@ -1,3 +1,4 @@
+import json
 import uuid
 from typing import Optional, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -5,7 +6,8 @@ from sqlalchemy import select
 
 from app.models.provider import ProviderConfig, ApiKey
 from app.core.security import encrypt_api_key, decrypt_api_key
-from app.providers.registry import DEFAULT_PROVIDERS
+from app.providers.chat.registry import DEFAULT_PROVIDERS
+from app.schemas.settings import SETTINGS_REDIS_KEY
 
 
 class ProviderService:
@@ -27,6 +29,29 @@ class ProviderService:
                 self.db.add(config)
         await self.db.commit()
 
+    async def get_embedding_config(self) -> Tuple[str, str, str]:
+        """Return (provider_name, model, api_key) for the configured embedding provider."""
+        from app.core.redis import get_redis_client
+        from app.core.config import settings as app_config
+
+        redis = get_redis_client()
+        raw = await redis.get(SETTINGS_REDIS_KEY)
+        data = json.loads(raw) if raw else {}
+
+        provider_name = data.get("embedding_provider", "local")
+        model = data.get("embedding_model", app_config.DEFAULT_EMBEDDING_MODEL)
+
+        api_key = ""
+        if provider_name not in ("local", "ollama"):
+            key_result = await self.db.execute(
+                select(ApiKey).where(ApiKey.provider == provider_name, ApiKey.is_active == True)
+            )
+            key_record = key_result.scalar_one_or_none()
+            if key_record:
+                api_key = decrypt_api_key(key_record.encrypted_key)
+
+        return provider_name, model, api_key
+
     async def get_default_provider(self) -> Tuple[Optional[ProviderConfig], Optional[str]]:
         result = await self.db.execute(
             select(ProviderConfig).where(ProviderConfig.is_default == True, ProviderConfig.is_enabled == True)
@@ -35,13 +60,26 @@ class ProviderService:
         if not provider:
             return None, None
 
-        key_result = await self.db.execute(
-            select(ApiKey).where(ApiKey.provider == provider.name, ApiKey.is_active == True)
-        )
-        key_record = key_result.scalar_one_or_none()
-        api_key = decrypt_api_key(key_record.encrypted_key) if key_record else ""
-
+        api_key = await self.get_api_key(provider.name)
         return provider, api_key
+
+    async def get_provider_config(self, name: str) -> Tuple[Optional[ProviderConfig], Optional[str]]:
+        result = await self.db.execute(select(ProviderConfig).where(ProviderConfig.name == name))
+        provider = result.scalar_one_or_none()
+        if not provider:
+            return None, None
+        
+        api_key = await self.get_api_key(name)
+        return provider, api_key
+
+    async def get_api_key(self, provider: str) -> str:
+        if provider in ("ollama", "local"):
+            return ""
+        result = await self.db.execute(
+            select(ApiKey).where(ApiKey.provider == provider, ApiKey.is_active == True)
+        )
+        record = result.scalar_one_or_none()
+        return decrypt_api_key(record.encrypted_key) if record else ""
 
     async def list_providers(self):
         result = await self.db.execute(select(ProviderConfig))

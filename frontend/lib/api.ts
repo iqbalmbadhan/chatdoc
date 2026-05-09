@@ -112,6 +112,7 @@ export const systemApi = {
 export const settingsApi = {
   get: () => api.get("/settings").then((r) => r.data),
   update: (body: object) => api.put("/settings", body).then((r) => r.data),
+  embeddingProviders: () => api.get("/settings/embedding-providers").then((r) => r.data),
 };
 
 // ─── Visitors ─────────────────────────────────────────────────────────────────

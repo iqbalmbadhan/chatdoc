@@ -26,7 +26,7 @@ export default function ChatPage() {
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       referrer: document.referrer,
       landing_page: window.location.pathname,
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
 
   useEffect(() => {
@@ -45,8 +45,9 @@ export default function ChatPage() {
         {/* Header */}
         <header className="flex items-center justify-between px-4 py-3 border-b bg-background/80 backdrop-blur-sm safe-top sticky top-0 z-10">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)} className="h-8 w-8">
+            <Button variant="ghost" className="gap-2 px-2" onClick={() => setSidebarOpen(!sidebarOpen)}>
               <Menu className="w-4 h-4" />
+              <span className="text-xs font-medium hidden lg:block">History</span>
             </Button>
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-blue-500 flex items-center justify-center">

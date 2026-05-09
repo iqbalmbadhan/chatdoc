@@ -81,10 +81,13 @@ async def list_conversations(
         page=page,
         page_size=page_size,
     )
-    return {"items": items, "total": total}
+    return {
+        "items": [ConversationOut.model_validate(i) for i in items],
+        "total": total
+    }
 
 
 @router.get("/conversations/{conv_id}/messages")
 async def get_messages(conv_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     messages = await ChatService(db).get_conversation_messages(conv_id)
-    return {"messages": messages}
+    return {"messages": [MessageOut.model_validate(m) for m in messages]}

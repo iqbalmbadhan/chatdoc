@@ -36,6 +36,14 @@ export default function DocumentsPage() {
 
   useEffect(() => { load(); }, []);
 
+  // Poll every 3 s while any document is still processing or pending
+  useEffect(() => {
+    const hasPending = documents.some((d) => d.status === "pending" || d.status === "processing");
+    if (!hasPending) return;
+    const id = setInterval(load, 3000);
+    return () => clearInterval(id);
+  }, [documents]);
+
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     setUploading(true);
     setUploadProgress(0);
@@ -92,8 +100,11 @@ export default function DocumentsPage() {
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this document?")) return;
-    await docsApi.delete(id);
-    load();
+    try {
+      await docsApi.delete(id);
+    } finally {
+      load();
+    }
   };
 
   const handleReindex = async (id: string) => {

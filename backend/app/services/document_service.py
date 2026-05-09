@@ -78,10 +78,18 @@ class DocumentService:
             chunks = DocumentProcessor.chunk_text(text, chunk_size, chunk_overlap)
             token_count = DocumentProcessor.estimate_tokens(text)
 
-            dimension = EmbeddingService.get_dimension(embedding_model)
+            from app.services.provider_service import ProviderService
+            from app.core.config import settings as app_config
+            emb_provider, emb_model, emb_api_key = await ProviderService(self.db).get_embedding_config()
+            # embedding_model arg (from reindex call) overrides the stored setting
+            if embedding_model and embedding_model != app_config.DEFAULT_EMBEDDING_MODEL:
+                emb_model = embedding_model
+
+            dimension = EmbeddingService.get_dimension(emb_model)
             await self.vector_store.ensure_collection(dimension=dimension)
 
-            embeddings = await EmbeddingService.embed_texts_local(chunks, embedding_model)
+            ollama_url = app_config.OLLAMA_URL if emb_provider == "ollama" else ""
+            embeddings = await EmbeddingService.embed_with_provider(chunks, emb_provider, emb_model, emb_api_key, ollama_url)
 
             await self.vector_store.upsert_chunks(
                 doc_id=str(doc.id),
@@ -120,7 +128,7 @@ class DocumentService:
         if os.path.exists(doc.file_path):
             os.remove(doc.file_path)
 
-        self.db.delete(doc)  # session.delete() is synchronous
+        await self.db.delete(doc)
         await self.db.commit()
 
     async def list_documents(self, page: int = 1, page_size: int = 20, status: Optional[str] = None) -> tuple:
