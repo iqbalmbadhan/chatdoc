@@ -3,7 +3,7 @@ import os
 import asyncio
 
 async def list_models():
-    api_key = "AIzaSyAS0ptiJ-VPt0ua3Fe-Q7Jxw2xn2oNCvgg"
+    api_key = ""
     genai.configure(api_key=api_key)
     try:
         models = genai.list_models()
